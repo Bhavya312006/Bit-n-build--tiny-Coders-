@@ -1,4 +1,3 @@
-# Bit-n-build--tiny-Coders-
 import streamlit as st
 import pandas as pd
 import plotly.express as px
@@ -124,7 +123,7 @@ else:
     st.success("✅ No budget overruns detected.")
 
 # --------------------------
-# Feedback System with Animated Star Ratings
+# Feedback System with Persistent Storage
 # --------------------------
 st.subheader("💭 Community Feedback & Ratings")
 feedback = st.text_area("Leave your feedback or suggestions here:")
@@ -134,22 +133,28 @@ rating_options = ["⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐
 rating = st.radio("Select your rating:", rating_options, horizontal=True)
 rating_value = rating_options.index(rating) + 1
 
+# Load feedback from file OR session
+if "feedback_data" not in st.session_state:
+    if os.path.exists("feedback.csv"):
+        st.session_state.feedback_data = pd.read_csv("feedback.csv")
+    else:
+        st.session_state.feedback_data = pd.DataFrame(columns=["Feedback", "Rating"])
 
-st.session_state.feedback_data = pd.DataFrame(columns=["Feedback", "Rating"])
-
+# Add new feedback
 if st.button("Submit Feedback"):
     if feedback.strip():
         new_feedback = pd.DataFrame([[feedback, rating_value]], columns=["Feedback", "Rating"])
         st.session_state.feedback_data = pd.concat([st.session_state.feedback_data, new_feedback], ignore_index=True)
         st.session_state.feedback_data.to_csv("feedback.csv", index=False)
         st.success(f"✅ Thank you! Your feedback was saved with {rating_value}⭐")
-        feedback = ""  
     else:
         st.warning("⚠ Feedback cannot be empty.")
 
+# Display feedback immediately
 st.subheader("📋 Community Feedback Received")
 st.dataframe(st.session_state.feedback_data, use_container_width=True)
 
+# Option to download CSV
 if not st.session_state.feedback_data.empty:
     csv_buffer = BytesIO()
     st.session_state.feedback_data.to_csv(csv_buffer, index=False)
@@ -164,6 +169,7 @@ user_query = st.text_input("Ask a question about the budget or vendors:")
 if st.button("Ask"):
     response = "Sorry, I could not understand your query."
     query_lower = user_query.lower()
+    
     if "department" in query_lower:
         dept_summary = filtered_df.groupby("Department")["Budget_Spent"].sum()
         response = "Department-wise Spending:\n" + "\n".join([f"{d}: {currency_symbol}{v:,.0f}" for d,v in dept_summary.items()])
@@ -173,6 +179,7 @@ if st.button("Ask"):
     elif "overbudget" in query_lower or "anomaly" in query_lower:
         overbudget_count = filtered_df["OverBudget"].sum()
         response = f"There are {overbudget_count} budget overruns."
+    
     st.info(response)
 
 # --------------------------
