@@ -34,16 +34,33 @@ st.title("💰 Budget & Expense Dashboard")
 st.markdown("### Track departmental spending, detect anomalies & gather feedback")
 
 # --------------------------
-# Sidebar - Filters
+# Sidebar - Filters + Universal Search
 # --------------------------
 st.sidebar.header("🔎 Filters")
-department_filter = st.sidebar.multiselect("Select Department", options=df_display["Department"].unique(), default=df_display["Department"].unique())
-vendor_filter = st.sidebar.multiselect("Select Vendor", options=df_display["Vendor"].unique(), default=df_display["Vendor"].unique())
-search_text = st.sidebar.text_input("Search Vendor/Department")
+department_filter = st.sidebar.multiselect(
+    "Select Department", 
+    options=df_display["Department"].unique(), 
+    default=df_display["Department"].unique()
+)
+vendor_filter = st.sidebar.multiselect(
+    "Select Vendor", 
+    options=df_display["Vendor"].unique(), 
+    default=df_display["Vendor"].unique()
+)
+search_text = st.sidebar.text_input("🔍 Search Anything")
 
-filtered_df = df_display[df_display["Department"].isin(department_filter) & df_display["Vendor"].isin(vendor_filter)]
+# Apply filters
+filtered_df = df_display[
+    df_display["Department"].isin(department_filter) & 
+    df_display["Vendor"].isin(vendor_filter)
+]
+
+# ✅ Universal search across all columns
 if search_text:
-    filtered_df = filtered_df[filtered_df.apply(lambda row: search_text.lower() in row.to_string().lower(), axis=1)]
+    search_text = search_text.lower()
+    filtered_df = filtered_df[
+        filtered_df.apply(lambda row: row.astype(str).str.lower().str.contains(search_text).any(), axis=1)
+    ]
 
 # --------------------------
 # Anomaly Detection
@@ -123,9 +140,17 @@ else:
     st.success("✅ No budget overruns detected.")
 
 # --------------------------
-# Feedback System with Persistent Storage
+# Feedback System with Persistence
 # --------------------------
 st.subheader("💭 Community Feedback & Ratings")
+
+# ✅ Load previous feedback if exists
+if "feedback_data" not in st.session_state:
+    if os.path.exists("feedback.csv"):
+        st.session_state.feedback_data = pd.read_csv("feedback.csv")
+    else:
+        st.session_state.feedback_data = pd.DataFrame(columns=["Feedback", "Rating"])
+
 feedback = st.text_area("Leave your feedback or suggestions here:")
 
 st.markdown("### ⭐ Rate the Dashboard")
@@ -133,14 +158,6 @@ rating_options = ["⭐", "⭐⭐", "⭐⭐⭐", "⭐⭐⭐⭐", "⭐⭐⭐⭐⭐
 rating = st.radio("Select your rating:", rating_options, horizontal=True)
 rating_value = rating_options.index(rating) + 1
 
-# Load feedback from file OR session
-if "feedback_data" not in st.session_state:
-    if os.path.exists("feedback.csv"):
-        st.session_state.feedback_data = pd.read_csv("feedback.csv")
-    else:
-        st.session_state.feedback_data = pd.DataFrame(columns=["Feedback", "Rating"])
-
-# Add new feedback
 if st.button("Submit Feedback"):
     if feedback.strip():
         new_feedback = pd.DataFrame([[feedback, rating_value]], columns=["Feedback", "Rating"])
@@ -150,11 +167,9 @@ if st.button("Submit Feedback"):
     else:
         st.warning("⚠ Feedback cannot be empty.")
 
-# Display feedback immediately
 st.subheader("📋 Community Feedback Received")
 st.dataframe(st.session_state.feedback_data, use_container_width=True)
 
-# Option to download CSV
 if not st.session_state.feedback_data.empty:
     csv_buffer = BytesIO()
     st.session_state.feedback_data.to_csv(csv_buffer, index=False)
@@ -168,8 +183,7 @@ st.subheader("🤖 Budget Chatbot Helper")
 user_query = st.text_input("Ask a question about the budget or vendors:")
 if st.button("Ask"):
     response = "Sorry, I could not understand your query."
-    query_lower = user_query.lower()
-    
+    query_lower = user_query.lower() 
     if "department" in query_lower:
         dept_summary = filtered_df.groupby("Department")["Budget_Spent"].sum()
         response = "Department-wise Spending:\n" + "\n".join([f"{d}: {currency_symbol}{v:,.0f}" for d,v in dept_summary.items()])
@@ -178,8 +192,7 @@ if st.button("Ask"):
         response = "Vendor-wise Spending:\n" + "\n".join([f"{v}: {currency_symbol}{val:,.0f}" for v,val in vendor_summary.items()])
     elif "overbudget" in query_lower or "anomaly" in query_lower:
         overbudget_count = filtered_df["OverBudget"].sum()
-        response = f"There are {overbudget_count} budget overruns."
-    
+        response = f"There are {overbudget_count} budget overruns."  
     st.info(response)
 
 # --------------------------
